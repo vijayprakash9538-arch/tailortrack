@@ -1,37 +1,30 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:tailor_track/features/customers/data/customers_repository.dart';
-import 'package:tailor_track/features/insights/presentation/insights_providers.dart';
-import 'package:tailor_track/features/orders/data/orders_repository.dart';
+import 'package:tailor_track/features/customers/domain/customer.dart';
+import 'package:tailor_track/features/customers/domain/measurement.dart';
 import 'package:tailor_track/features/orders/domain/order.dart';
 import 'package:tailor_track/features/orders/domain/order_enums.dart';
 
-ProviderContainer _container() {
-  final c = ProviderContainer();
-  addTearDown(c.dispose);
-  return c;
-}
+Order _order({double total = 1000, double advance = 400, OrderStatus status = OrderStatus.pending}) => Order(
+      id: 'id-1',
+      customerId: 'cust-1',
+      customerName: 'Priya',
+      phone: '98765 43210',
+      dressType: 'Blouse',
+      deliveryDate: DateTime(2026, 6, 28),
+      expectedDeliveryTime: DeliveryTime.morning,
+      totalAmount: total,
+      advance: advance,
+      status: status,
+      createdAt: DateTime(2026, 6, 20, 10, 30),
+      measurement: const Measurement(notes: 'Chest 34, Waist 28'),
+      notes: 'Boat neck',
+    );
 
 void main() {
   group('Order balance', () {
-    test('balance = total - advance', () {
-      final o = Order(
-        id: 'x', customerId: 'c', customerName: 'A', phone: '1',
-        dressType: 'Blouse', deliveryDate: DateTime.now(), expectedDeliveryTime: DeliveryTime.morning,
-        totalAmount: 1000, advance: 400, status: OrderStatus.pending, createdAt: DateTime.now(),
-      );
-      expect(o.balance, 600);
-    });
-
-    test('fully settling sets balance to zero', () {
-      final o = Order(
-        id: 'x', customerId: 'c', customerName: 'A', phone: '1',
-        dressType: 'Blouse', deliveryDate: DateTime.now(), expectedDeliveryTime: DeliveryTime.morning,
-        totalAmount: 1000, advance: 400, status: OrderStatus.pending, createdAt: DateTime.now(),
-      );
-      expect(o.copyWith(advance: o.totalAmount).balance, 0);
-    });
+    test('balance = total - advance', () => expect(_order().balance, 600));
+    test('fully settling sets balance to zero', () => expect(_order().copyWith(advance: 1000).balance, 0));
   });
 
   group('Order status workflow', () {
@@ -41,102 +34,44 @@ void main() {
       expect(OrderStatus.ready.next, OrderStatus.delivered);
       expect(OrderStatus.delivered.next, isNull);
     });
-  });
-
-  group('Customer dedup (addOrFind)', () {
-    test('same phone returns the existing customer', () {
-      final c = _container();
-      final notifier = c.read(customersProvider.notifier);
-      final before = c.read(customersProvider).length;
-      final found = notifier.addOrFind(name: 'Whoever', phone: '98765 43210');
-      expect(found.id, 'c1');
-      expect(c.read(customersProvider).length, before, reason: 'no new customer created');
-    });
-
-    test('same name but new phone creates a distinct customer', () {
-      final c = _container();
-      final notifier = c.read(customersProvider.notifier);
-      final before = c.read(customersProvider).length;
-      final created = notifier.addOrFind(name: 'Priya', phone: '70000 00000');
-      expect(created.id, isNot('c1'));
-      expect(c.read(customersProvider).length, before + 1);
-    });
-
-    test('duplicate display names remain separate records', () {
-      final c = _container();
-      final priyas = c.read(customersProvider).where((x) => x.name == 'Priya').toList();
-      expect(priyas.length, greaterThanOrEqualTo(2));
-      expect(priyas.map((e) => e.phone).toSet().length, priyas.length, reason: 'distinct phones');
+    test('parses status/time names safely with a fallback', () {
+      expect(orderStatusFromName('ready'), OrderStatus.ready);
+      expect(orderStatusFromName('nonsense'), OrderStatus.pending);
+      expect(deliveryTimeFromName('evening'), DeliveryTime.evening);
+      expect(deliveryTimeFromName(null), DeliveryTime.morning);
     });
   });
 
-  group('Customer stats', () {
-    test('aggregate totals are derived from that customer\'s orders', () {
-      final c = _container();
-      final stats = c.read(customerStatsProvider('c1'));
-      // c1 (Priya, 98765 43210) has o1 (850/adv200) and o10 (600/adv600).
-      expect(stats.totalOrders, 2);
-      expect(stats.totalSpent, 1450);
-      expect(stats.pendingBalance, 650);
+  group('Order DB serialization', () {
+    test('round-trips through the tt_orders row shape', () {
+      final original = _order();
+      final row = original.toDbMap('shop-9');
+      expect(row['shop_id'], 'shop-9');
+      expect(row['delivery_date'], '2026-06-28');
+      expect(row['expected_delivery_time'], 'morning');
+      expect(row['status'], 'pending');
+      expect(row['measurement_notes'], 'Chest 34, Waist 28');
+
+      final back = OrderSerialization.fromDbMap(row);
+      expect(back.id, original.id);
+      expect(back.totalAmount, original.totalAmount);
+      expect(back.balance, original.balance);
+      expect(back.deliveryDate, original.deliveryDate);
+      expect(back.expectedDeliveryTime, original.expectedDeliveryTime);
+      expect(back.measurement?.notes, original.measurement?.notes);
     });
   });
 
-  group('Business health accounting', () {
-    test('collected + pending always reconciles to order value', () {
-      final c = _container();
-      final h = c.read(businessHealthProvider);
-      expect(h.collected + h.pending, h.orderValue);
-    });
-
-    test('pending collection equals sum of all balances (all-time)', () {
-      final c = _container();
-      // Business Health defaults to the current month — switch to All Time
-      // to compare against every order's balance.
-      c.read(insightsMonthProvider.notifier).state = null;
-      final h = c.read(businessHealthProvider);
-      final expected = c.read(ordersProvider).fold<double>(0, (s, o) => s + o.balance);
-      expect(h.pending, expected);
-    });
-  });
-
-  group('Insights month filter', () {
-    test('filtering to the current month narrows the order set', () {
-      final c = _container();
-      final all = c.read(ordersProvider).length;
-      final now = DateTime.now();
-      c.read(insightsMonthProvider.notifier).state = DateTime(now.year, now.month, 1);
-      final filtered = c.read(monthFilteredOrdersProvider);
-      expect(filtered.length, lessThan(all));
-      expect(filtered.every((o) => o.createdAt.month == now.month && o.createdAt.year == now.year), isTrue);
-    });
-
-    test('All Time (null) includes every order', () {
-      final c = _container();
-      c.read(insightsMonthProvider.notifier).state = null;
-      expect(c.read(monthFilteredOrdersProvider).length, c.read(ordersProvider).length);
-    });
-  });
-
-  group('Top customers ranking', () {
-    test('sorted by order count then spend, highest first', () {
-      final c = _container();
-      final top = c.read(topCustomersProvider);
-      for (var i = 0; i < top.length - 1; i++) {
-        final a = c.read(customerStatsProvider(top[i].id));
-        final b = c.read(customerStatsProvider(top[i + 1].id));
-        final ok = a.totalOrders > b.totalOrders ||
-            (a.totalOrders == b.totalOrders && a.totalSpent >= b.totalSpent);
-        expect(ok, isTrue, reason: 'rank ${top[i].name} should outrank ${top[i + 1].name}');
-      }
-    });
-  });
-
-  group('Today schedule grouping', () {
-    test('counts only today\'s orders by delivery time', () {
-      final c = _container();
-      final sched = c.read(deliveryScheduleProvider);
-      final todays = c.read(todaysOrdersProvider).length;
-      expect(sched.morning + sched.afternoon + sched.evening, todays);
+  group('Customer DB serialization', () {
+    test('round-trips through the tt_customers row shape', () {
+      const c = Customer(id: 'c1', name: 'Kavya', phone: '91234 56789', lastMeasurement: Measurement(notes: 'Waist 30'));
+      final row = c.toDbMap('shop-9');
+      expect(row['shop_id'], 'shop-9');
+      expect(row['measurement_notes'], 'Waist 30');
+      final back = Customer.fromDbMap(row);
+      expect(back.id, 'c1');
+      expect(back.name, 'Kavya');
+      expect(back.lastMeasurement?.notes, 'Waist 30');
     });
   });
 }

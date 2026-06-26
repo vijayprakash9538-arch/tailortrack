@@ -23,7 +23,7 @@ class CustomerCard extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppRadius.card),
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(AppRadius.card),
@@ -32,24 +32,21 @@ class CustomerCard extends StatelessWidget {
         child: Row(
           children: [
             CircleAvatar(
-              radius: 22,
+              radius: 17,
               backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.12),
-              child: Text(initial, style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700)),
+              child: Text(initial, style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700, fontSize: 14)),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(customer.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                  Text(customer.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
                   const SizedBox(height: 2),
                   Text(
-                    customer.phone,
-                    style: TextStyle(fontSize: 13, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6)),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${stats.totalOrders} Orders',
+                    '${customer.phone}  ·  ${stats.totalOrders} orders',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 12, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6)),
                   ),
                 ],

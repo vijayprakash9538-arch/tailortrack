@@ -39,21 +39,21 @@ class OrderCard extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppRadius.card),
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(AppRadius.card),
           border: Border.all(color: Theme.of(context).dividerTheme.color ?? Colors.transparent),
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             CircleAvatar(
-              radius: 22,
+              radius: 17,
               backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.12),
-              child: Text(initial, style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700)),
+              child: Text(initial, style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700, fontSize: 14)),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -61,29 +61,24 @@ class OrderCard extends StatelessWidget {
                   Row(
                     children: [
                       Expanded(
-                        child: Text(order.customerName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                        child: Text(order.customerName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
                       ),
-                      Text(
-                        '₹${order.totalAmount.toStringAsFixed(0)}',
-                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                      ),
+                      Text('₹${order.totalAmount.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    order.dressType,
-                    style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7), fontSize: 13),
-                  ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 3),
+                  // Dress type · delivery date/time   +   status badge
                   Row(
                     children: [
-                      Icon(Icons.calendar_today_rounded, size: 13, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5)),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${DateFormat('d MMM').format(order.deliveryDate)} · ${order.expectedDeliveryTime.label}',
-                        style: TextStyle(fontSize: 12, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6)),
+                      Expanded(
+                        child: Text(
+                          '${order.dressType}  ·  ${DateFormat('d MMM').format(order.deliveryDate)} ${order.expectedDeliveryTime.label}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 12, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6)),
+                        ),
                       ),
-                      const Spacer(),
+                      const SizedBox(width: 6),
                       if (onStatusTap != null)
                         InkWell(
                           onTap: onStatusTap,
@@ -92,8 +87,7 @@ class OrderCard extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               StatusBadge(status: order.effectiveStatus),
-                              const SizedBox(width: 2),
-                              Icon(Icons.expand_more_rounded, size: 16, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5)),
+                              Icon(Icons.expand_more_rounded, size: 15, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5)),
                             ],
                           ),
                         )
@@ -101,20 +95,20 @@ class OrderCard extends StatelessWidget {
                         StatusBadge(status: order.effectiveStatus),
                     ],
                   ),
-                  if (showOrderedDate) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      'Ordered ${DateFormat('d MMM').format(order.createdAt)}',
-                      style: TextStyle(fontSize: 11, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5)),
-                    ),
-                  ],
                   if (showFinancials) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 4),
                     Row(
                       children: [
                         _financialChip(context, 'Adv', order.advance),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 10),
                         _financialChip(context, 'Bal', order.balance, highlight: order.balance > 0),
+                        if (showOrderedDate) ...[
+                          const Spacer(),
+                          Text(
+                            'Ordered ${DateFormat('d MMM').format(order.createdAt)}',
+                            style: TextStyle(fontSize: 11, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.45)),
+                          ),
+                        ],
                       ],
                     ),
                   ],

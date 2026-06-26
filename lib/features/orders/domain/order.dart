@@ -18,6 +18,7 @@ class Order {
   final Measurement? measurement;
   final String? notes;
   final String? photoPath;
+  final String? voicePath;
   final DateTime createdAt;
 
   const Order({
@@ -35,6 +36,7 @@ class Order {
     this.measurement,
     this.notes,
     this.photoPath,
+    this.voicePath,
   });
 
   double get balance => totalAmount - advance;
@@ -63,6 +65,7 @@ class Order {
     Measurement? measurement,
     String? notes,
     String? photoPath,
+    String? voicePath,
     DateTime? createdAt,
   }) {
     return Order(
@@ -79,6 +82,7 @@ class Order {
       measurement: measurement ?? this.measurement,
       notes: notes ?? this.notes,
       photoPath: photoPath ?? this.photoPath,
+      voicePath: voicePath ?? this.voicePath,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -87,5 +91,51 @@ class Order {
 extension _DateTimeCopyWith on DateTime {
   DateTime copyWith({int? hour, int? minute}) {
     return DateTime(year, month, day, hour ?? this.hour, minute ?? this.minute);
+  }
+}
+
+extension OrderSerialization on Order {
+  /// Maps to the `tt_orders` row shape (also used for the local offline cache).
+  Map<String, dynamic> toDbMap(String shopId) {
+    final d = deliveryDate;
+    return {
+      'id': id,
+      'shop_id': shopId,
+      'customer_id': customerId,
+      'customer_name': customerName,
+      'phone': phone,
+      'dress_type': dressType,
+      'delivery_date': '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}',
+      'expected_delivery_time': expectedDeliveryTime.name,
+      'total_amount': totalAmount,
+      'advance': advance,
+      'status': status.name,
+      'measurement_notes': measurement?.notes,
+      'notes': notes,
+      'photo_path': photoPath,
+      'voice_path': voicePath,
+      'created_at': createdAt.toIso8601String(),
+    };
+  }
+
+  static Order fromDbMap(Map<String, dynamic> m) {
+    final mn = m['measurement_notes'] as String?;
+    return Order(
+      id: m['id'] as String,
+      customerId: (m['customer_id'] as String?) ?? '',
+      customerName: (m['customer_name'] as String?) ?? '',
+      phone: (m['phone'] as String?) ?? '',
+      dressType: (m['dress_type'] as String?) ?? '',
+      deliveryDate: DateTime.parse(m['delivery_date'] as String),
+      expectedDeliveryTime: deliveryTimeFromName(m['expected_delivery_time'] as String?),
+      totalAmount: (m['total_amount'] as num?)?.toDouble() ?? 0,
+      advance: (m['advance'] as num?)?.toDouble() ?? 0,
+      status: orderStatusFromName(m['status'] as String?),
+      measurement: (mn == null || mn.isEmpty) ? null : Measurement(notes: mn),
+      notes: m['notes'] as String?,
+      photoPath: m['photo_path'] as String?,
+      voicePath: m['voice_path'] as String?,
+      createdAt: DateTime.parse(m['created_at'] as String),
+    );
   }
 }

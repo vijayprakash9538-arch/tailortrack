@@ -24,4 +24,23 @@ class Customer {
       lastMeasurement: lastMeasurement ?? this.lastMeasurement,
     );
   }
+
+  /// Maps to the `tt_customers` row shape (also used for the offline cache).
+  Map<String, dynamic> toDbMap(String shopId) => {
+        'id': id,
+        'shop_id': shopId,
+        'name': name,
+        'phone': phone,
+        'measurement_notes': lastMeasurement?.notes,
+      };
+
+  static Customer fromDbMap(Map<String, dynamic> m) {
+    final mn = m['measurement_notes'] as String?;
+    return Customer(
+      id: m['id'] as String,
+      name: (m['name'] as String?) ?? '',
+      phone: (m['phone'] as String?) ?? '',
+      lastMeasurement: (mn == null || mn.isEmpty) ? null : Measurement(notes: mn),
+    );
+  }
 }

@@ -11,9 +11,10 @@ import '../domain/order.dart';
 import '../domain/order_enums.dart';
 import 'order_status_actions.dart';
 
-/// The three top-level views. "Upcoming" is the tailor's daily driver —
-/// non-delivered orders grouped by how soon they're due, so this week's
-/// workload is visible at a glance.
+/// The three top-level views:
+/// - Upcoming: active (non-delivered) orders grouped by how soon they're due.
+/// - All: every active order in one list, filterable by status.
+/// - Done: completed (delivered) orders.
 enum _OrdersView { upcoming, all, delivered }
 
 const _statusFilters = ['All', 'Pending', 'Stitching', 'Ready', 'Overdue'];
@@ -88,7 +89,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
               child: TextField(
                 onChanged: (v) => setState(() => _query = v),
                 decoration: const InputDecoration(
@@ -97,24 +98,27 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                 ),
               ),
             ),
-            // View segmented control
+            // View segmented control — labels only so "Upcoming" fits on phones.
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: SegmentedButton<_OrdersView>(
                 segments: const [
-                  ButtonSegment(value: _OrdersView.upcoming, label: Text('Upcoming'), icon: Icon(Icons.event_note_rounded, size: 18)),
-                  ButtonSegment(value: _OrdersView.all, label: Text('All'), icon: Icon(Icons.list_rounded, size: 18)),
-                  ButtonSegment(value: _OrdersView.delivered, label: Text('Done'), icon: Icon(Icons.check_rounded, size: 18)),
+                  ButtonSegment(value: _OrdersView.upcoming, label: Text('Upcoming')),
+                  ButtonSegment(value: _OrdersView.all, label: Text('All')),
+                  ButtonSegment(value: _OrdersView.delivered, label: Text('Done')),
                 ],
                 selected: {_view},
                 showSelectedIcon: false,
                 onSelectionChanged: (s) => setState(() => _view = s.first),
-                style: ButtonStyle(visualDensity: VisualDensity.compact),
+                style: const ButtonStyle(
+                  textStyle: WidgetStatePropertyAll(TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600)),
+                  padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+                ),
               ),
             ),
             if (_range != null)
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Chip(
@@ -124,7 +128,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                   ),
                 ),
               ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Expanded(child: _buildBody(base)),
           ],
         ),
@@ -147,24 +151,25 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
       case _OrdersView.delivered:
         final delivered = base.where((o) => o.status == OrderStatus.delivered).toList()
           ..sort((a, b) => b.deliveryDate.compareTo(a.deliveryDate));
-        if (delivered.isEmpty) return const _Empty(text: 'No delivered orders yet');
-        return ListView.separated(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-          itemCount: delivered.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 10),
-          itemBuilder: (_, i) => OrderCard(
-            order: delivered[i],
-            showFinancials: true,
-            showOrderedDate: true,
-            onTap: () => context.push('/order/${delivered[i].id}'),
-          ),
+        if (delivered.isEmpty) return const _Empty(text: 'No completed orders yet');
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+          children: [
+            _CappedOrderList(
+              orders: delivered,
+              cap: 12,
+              onTapOrder: (o) => context.push('/order/${o.id}'),
+              onStatusTap: _updateStatus,
+            ),
+          ],
         );
     }
   }
 }
 
-/// Groups non-delivered orders into time buckets so the tailor sees what's
-/// overdue and what's due this week without scanning a flat list.
+/// Groups active orders into time buckets so the tailor sees what's overdue
+/// and what's due this week without scanning a flat list. Each bucket caps
+/// its list and offers a "View all" expander.
 class _UpcomingView extends StatelessWidget {
   final List<Order> orders;
   final void Function(Order) onTapOrder;
@@ -204,32 +209,21 @@ class _UpcomingView extends StatelessWidget {
     }
 
     final sections = <Widget>[];
-    void addSection(String title, List<Order> items, Color color, IconData icon) {
+    void addSection(String title, List<Order> items, Color color, IconData icon, int cap) {
       if (items.isEmpty) return;
       sections.add(_SectionHeader(title: title, count: items.length, color: color, icon: icon));
-      for (final o in items) {
-        sections.add(Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: OrderCard(
-            order: o,
-            showFinancials: true,
-            showOrderedDate: true,
-            onTap: () => onTapOrder(o),
-            onStatusTap: () => onStatusTap(o),
-          ),
-        ));
-      }
-      sections.add(const SizedBox(height: 8));
+      sections.add(_CappedOrderList(orders: items, cap: cap, onTapOrder: onTapOrder, onStatusTap: onStatusTap));
+      sections.add(const SizedBox(height: 10));
     }
 
-    addSection('Overdue', overdue, AppColors.statusOverdue, Icons.warning_amber_rounded);
-    addSection('Today', dueToday, AppColors.primary, Icons.today_rounded);
-    addSection('Tomorrow', tomorrow, AppColors.statusStitching, Icons.event_rounded);
-    addSection('This Week', thisWeek, AppColors.statusPending, Icons.date_range_rounded);
-    addSection('Later', later, AppColors.textSecondary, Icons.schedule_rounded);
+    addSection('Overdue', overdue, AppColors.statusOverdue, Icons.warning_amber_rounded, 5);
+    addSection('Today', dueToday, AppColors.primary, Icons.today_rounded, 6);
+    addSection('Tomorrow', tomorrow, AppColors.statusStitching, Icons.event_rounded, 5);
+    addSection('This Week', thisWeek, AppColors.statusPending, Icons.date_range_rounded, 5);
+    addSection('Later', later, AppColors.textSecondary, Icons.schedule_rounded, 4);
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
       children: sections,
     );
   }
@@ -252,7 +246,9 @@ class _AllView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final filtered = orders.where((o) {
+    // "All" = active orders only (completed live under the Done tab).
+    final active = orders.where((o) => o.status != OrderStatus.delivered).toList();
+    final filtered = active.where((o) {
       if (statusFilter == 'All') return true;
       return o.effectiveStatus.label == statusFilter;
     }).toList()
@@ -261,10 +257,10 @@ class _AllView extends StatelessWidget {
     return Column(
       children: [
         SizedBox(
-          height: 40,
+          height: 38,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: _statusFilters.length,
             separatorBuilder: (_, __) => const SizedBox(width: 8),
             itemBuilder: (_, i) {
@@ -277,23 +273,68 @@ class _AllView extends StatelessWidget {
             },
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         Expanded(
           child: filtered.isEmpty
               ? const _Empty(text: 'No orders found')
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-                  itemCount: filtered.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (_, i) => OrderCard(
-                    order: filtered[i],
-                    showFinancials: true,
-                    showOrderedDate: true,
-                    onTap: () => onTapOrder(filtered[i]),
-                    onStatusTap: () => onStatusTap(filtered[i]),
-                  ),
+              : ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                  children: [
+                    _CappedOrderList(orders: filtered, cap: 15, onTapOrder: onTapOrder, onStatusTap: onStatusTap),
+                  ],
                 ),
         ),
+      ],
+    );
+  }
+}
+
+/// Renders up to [cap] order cards, then a "View all (N more)" button that
+/// reveals the rest (and a "Show less" to collapse again). Keeps long lists
+/// scannable without endless scrolling.
+class _CappedOrderList extends StatefulWidget {
+  final List<Order> orders;
+  final int cap;
+  final void Function(Order) onTapOrder;
+  final Future<void> Function(Order) onStatusTap;
+
+  const _CappedOrderList({required this.orders, required this.cap, required this.onTapOrder, required this.onStatusTap});
+
+  @override
+  State<_CappedOrderList> createState() => _CappedOrderListState();
+}
+
+class _CappedOrderListState extends State<_CappedOrderList> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final all = widget.orders;
+    final visible = _expanded ? all : all.take(widget.cap).toList();
+    final hidden = all.length - visible.length;
+
+    return Column(
+      children: [
+        for (final o in visible)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: OrderCard(
+              order: o,
+              showFinancials: true,
+              showOrderedDate: true,
+              onTap: () => widget.onTapOrder(o),
+              onStatusTap: () => widget.onStatusTap(o),
+            ),
+          ),
+        if (all.length > widget.cap)
+          Align(
+            alignment: Alignment.center,
+            child: TextButton.icon(
+              onPressed: () => setState(() => _expanded = !_expanded),
+              icon: Icon(_expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded, size: 18),
+              label: Text(_expanded ? 'Show less' : 'View all ($hidden more)'),
+            ),
+          ),
       ],
     );
   }
@@ -309,12 +350,12 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10, top: 4),
+      padding: const EdgeInsets.only(bottom: 8, top: 4),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: color),
+          Icon(icon, size: 17, color: color),
           const SizedBox(width: 8),
-          Text(title, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: color)),
+          Text(title, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5, color: color)),
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),

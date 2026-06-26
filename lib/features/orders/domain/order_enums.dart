@@ -53,9 +53,23 @@ extension OrderStatusX on OrderStatus {
   }
 }
 
+OrderStatus orderStatusFromName(String? name) {
+  return OrderStatus.values.firstWhere(
+    (s) => s.name == name,
+    orElse: () => OrderStatus.pending,
+  );
+}
+
 /// Time-of-day window the customer expects delivery — drives the
 /// Insights "Today's Delivery Schedule" grouping.
 enum DeliveryTime { morning, afternoon, evening }
+
+DeliveryTime deliveryTimeFromName(String? name) {
+  return DeliveryTime.values.firstWhere(
+    (t) => t.name == name,
+    orElse: () => DeliveryTime.morning,
+  );
+}
 
 extension DeliveryTimeX on DeliveryTime {
   String get label {

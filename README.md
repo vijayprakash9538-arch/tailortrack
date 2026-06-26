@@ -86,6 +86,44 @@ The same `MeasurementForm` widget is reused in New Order and Customer Edit.
 
 Customer profiles have an **Edit** button (name, phone, full measurements). Saved measurements become the customer's default and auto-fill repeat orders.
 
+## Supabase backend
+
+TailorTrack is backed by a dedicated Supabase project (`tailortrack`, region ap-south-1).
+
+**Config** — `lib/core/supabase/supabase_config.dart` reads the project URL and the **publishable** key (public by design, protected by RLS). The secret/service-role key is never referenced in the app. Override at build time without editing source:
+
+```
+flutter build web --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...
+```
+
+**Schema** (`tt_` prefix): `tt_shops`, `tt_customers`, `tt_orders`. One shop per authenticated owner; every customer/order carries `shop_id`. A signup trigger (`tt_on_auth_user_created`) auto-creates the shop from the shop/owner name passed as signup metadata.
+
+**Security** — Row Level Security on every table scopes rows to the owner's shop via `tt_current_shop_id()`. Storage buckets `photos` and `voice-notes` are **private**, with policies that only allow access under `{shop_id}/…`.
+
+**Auth** — email/password (`features/authentication/`): Login, Sign Up, Forgot Password, Reset Password. Session persists across launches/devices (handled by `supabase_flutter`). The router (`app_router.dart`) gates the app: signed-out users land on `/login`; signed-in users go to the tabs. Sign out from the Home header.
+
+**Realtime multi-device sync** — `OrdersNotifier`/`CustomersNotifier` subscribe to Postgres changes filtered by `shop_id`, so edits on one device appear on others automatically. Public provider APIs are unchanged, so the UI/workflows are untouched.
+
+**Offline support** — reads are cached locally (`shared_preferences`); the app opens instantly and works with no network. Writes apply optimistically and queue in an outbox (`core/offline/`) that flushes when connectivity returns.
+
+**Media compression** (`core/storage/media_service.dart`) — photos are resized to ~1280px / JPEG q70 before upload; voice notes record as AAC `.m4a`. Both upload to the shop's private storage folder; display/playback use short-lived signed URLs.
+
+## Settings & Backup
+
+A **Settings** screen (gear icon in the Home header → `/settings`) adds, without changing any existing screen:
+- **Account** — shop name, logged-in email, owner, and **Log out**.
+- **Automatic Cloud Backup** — note explaining data already syncs to Supabase and restores on any device you sign into (no manual action).
+- **Manual backup** — **Export JSON / Export ZIP** and **Import Backup**. Exports include customers, orders, measurements and payments; **photos and voice notes are excluded**. Import validates the file, previews the counts, and lets you **Merge** (add/update) or **Replace** (clear first).
+
+## Media retention
+
+`core/maintenance/retention_service.dart` runs a once-per-day sweep (throttled via SharedPreferences, kicked off from Home once the shop is known):
+- **Photos deleted after 60 days**, **voice notes after 30 days** — only the storage files are removed; the order/customer records (and all measurements/payments) are kept forever, with the media reference cleared.
+
+### Backend notes for going live
+- **Email confirmation**: Supabase's default "Confirm email" setting means a new signup must click a confirmation email before signing in. For instant testing you can turn it off in the Supabase dashboard → Authentication → Providers → Email.
+- **Password reset emails** use Supabase's built-in SMTP (rate-limited); add a custom SMTP provider for production volume.
+
 ## Known gaps / next steps
 
 - Phone-OTP login screen isn't wired into the router yet (it goes straight to Home) — `AuthService` exists and is ready to back a login flow.

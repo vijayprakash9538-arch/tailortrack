@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../common/widgets/confirm_dialog.dart';
 import '../../../common/widgets/order_card.dart';
 import '../../../common/widgets/section_header.dart';
 import '../../../core/services/phone_service.dart';
@@ -40,6 +41,25 @@ class CustomerProfileScreen extends ConsumerWidget {
             icon: const Icon(Icons.edit_outlined),
             tooltip: 'Edit customer',
             onPressed: () => context.push('/edit-customer/${customer.id}'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline_rounded),
+            tooltip: 'Delete customer',
+            onPressed: () async {
+              final orderCount = ref.read(ordersProvider).where((o) => o.customerId == customer.id).length;
+              final ok = await confirmDelete(
+                context,
+                title: 'Delete ${customer.name}?',
+                message: orderCount > 0
+                    ? 'This will also delete their $orderCount order${orderCount > 1 ? 's' : ''}. This cannot be undone.'
+                    : 'This cannot be undone.',
+              );
+              if (ok && context.mounted) {
+                ref.read(ordersProvider.notifier).deleteOrdersForCustomer(customer.id);
+                ref.read(customersProvider.notifier).deleteCustomer(customer.id);
+                context.pop();
+              }
+            },
           ),
         ],
       ),

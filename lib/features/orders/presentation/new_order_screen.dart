@@ -6,10 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../common/widgets/accordion_section.dart';
 import '../../../common/widgets/labeled_field.dart';
 import '../../../common/widgets/option_picker.dart';
+import '../../../common/widgets/voice_note.dart';
+import '../../../core/storage/media_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../customers/data/customers_repository.dart';
 import '../../customers/domain/customer.dart';
@@ -54,6 +57,7 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
   Customer? _selectedCustomer;
   OrderStatus _editingStatus = OrderStatus.pending; // preserved across an edit
   String? _photoPath;
+  String? _voicePath;
 
   @override
   void initState() {
@@ -84,6 +88,7 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
     _notesController.text = order.notes ?? '';
     _measureController.text = order.measurement?.notes ?? '';
     _photoPath = order.photoPath;
+    _voicePath = order.voicePath;
   }
 
   void _applyCustomer(Customer customer) {
@@ -122,7 +127,7 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
     }
 
     final order = Order(
-      id: widget.editOrderId ?? 'o${DateTime.now().microsecondsSinceEpoch}',
+      id: widget.editOrderId ?? const Uuid().v4(),
       customerId: customer.id,
       customerName: customer.name,
       phone: customer.phone,
@@ -136,6 +141,7 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
       measurement: measurement,
       notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
       photoPath: _photoPath,
+      voicePath: _voicePath,
     );
     if (widget.isEditing) {
       ref.read(ordersProvider.notifier).updateOrder(order);
@@ -214,6 +220,16 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
   }
 
   Widget _photoPreview(String path) {
+    final isRemote = !path.startsWith('/') && !path.startsWith('blob:') && !path.startsWith('http') && !path.startsWith('file:');
+    if (isRemote) {
+      // An already-uploaded photo (editing an order): resolve a signed URL.
+      final url = ref.watch(signedUrlProvider((bucket: 'photos', path: path)));
+      return url.when(
+        data: (u) => Image.network(u, fit: BoxFit.cover),
+        loading: () => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        error: (_, __) => const Center(child: Icon(Icons.broken_image_outlined)),
+      );
+    }
     if (kIsWeb) return Image.network(path, fit: BoxFit.cover);
     return Image.file(File(path), fit: BoxFit.cover);
   }
@@ -466,6 +482,14 @@ class _NewOrderScreenState extends ConsumerState<NewOrderScreen> {
                     controller: _notesController,
                     maxLines: 3,
                     decoration: const InputDecoration(hintText: 'e.g. Puff sleeves, back open with dori'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                LabeledField(
+                  label: 'Voice Note',
+                  child: VoiceRecorderField(
+                    path: _voicePath,
+                    onChanged: (p) => setState(() => _voicePath = p),
                   ),
                 ),
               ],

@@ -6,6 +6,8 @@
 	<string>TailorTrack uses the camera to capture reference photos for orders.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>TailorTrack lets you attach photos from your gallery to orders.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>TailorTrack records voice notes so you can capture customer corrections for an order.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

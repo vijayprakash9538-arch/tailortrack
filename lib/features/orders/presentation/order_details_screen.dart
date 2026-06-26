@@ -1,13 +1,13 @@
-import 'dart:io';
-
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../common/widgets/confirm_dialog.dart';
 import '../../../common/widgets/status_badge.dart';
+import '../../../common/widgets/voice_note.dart';
 import '../../../core/services/phone_service.dart';
+import '../../../core/storage/media_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../data/orders_repository.dart';
 import '../domain/order_enums.dart';
@@ -40,6 +40,21 @@ class OrderDetailsScreen extends ConsumerWidget {
             icon: const Icon(Icons.edit_outlined),
             tooltip: 'Edit order',
             onPressed: () => context.push('/edit-order/${order.id}'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline_rounded),
+            tooltip: 'Delete order',
+            onPressed: () async {
+              final ok = await confirmDelete(
+                context,
+                title: 'Delete this order?',
+                message: '${order.customerName} · ${order.dressType} (₹${order.totalAmount.toStringAsFixed(0)}). This cannot be undone.',
+              );
+              if (ok && context.mounted) {
+                ref.read(ordersProvider.notifier).deleteOrder(order.id);
+                context.pop();
+              }
+            },
           ),
         ],
       ),
@@ -81,12 +96,13 @@ class OrderDetailsScreen extends ConsumerWidget {
             const SizedBox(height: 16),
             Text('Photo', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: 10),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: kIsWeb
-                  ? Image.network(order.photoPath!, height: 220, width: double.infinity, fit: BoxFit.cover)
-                  : Image.file(File(order.photoPath!), height: 220, width: double.infinity, fit: BoxFit.cover),
-            ),
+            _OrderPhoto(path: order.photoPath!),
+          ],
+          if (order.voicePath != null) ...[
+            const SizedBox(height: 16),
+            Text('Voice Note', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 10),
+            _DetailCard(children: [_OrderVoice(path: order.voicePath!)]),
           ],
           const SizedBox(height: 24),
           Text('Update Status', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
@@ -119,6 +135,41 @@ class OrderDetailsScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Resolves the stored photo to a signed URL and shows it.
+class _OrderPhoto extends ConsumerWidget {
+  final String path;
+  const _OrderPhoto({required this.path});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final url = ref.watch(signedUrlProvider((bucket: 'photos', path: path)));
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: url.when(
+        data: (u) => Image.network(u, height: 220, width: double.infinity, fit: BoxFit.cover),
+        loading: () => Container(height: 220, color: Colors.black12, child: const Center(child: CircularProgressIndicator(strokeWidth: 2))),
+        error: (_, __) => Container(height: 120, color: Colors.black12, child: const Center(child: Text('Could not load photo'))),
+      ),
+    );
+  }
+}
+
+/// Resolves the stored voice note to a signed URL and plays it.
+class _OrderVoice extends ConsumerWidget {
+  final String path;
+  const _OrderVoice({required this.path});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final url = ref.watch(signedUrlProvider((bucket: 'voice-notes', path: path)));
+    return url.when(
+      data: (u) => VoiceNotePlayer(path: u),
+      loading: () => const SizedBox(height: 32, child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
+      error: (_, __) => const Text('Could not load voice note'),
     );
   }
 }

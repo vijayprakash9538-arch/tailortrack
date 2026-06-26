@@ -49,7 +49,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                   : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
                       itemCount: customers.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (context, index) {
                         final customer = customers[index];
                         final stats = ref.watch(customerStatsProvider(customer.id));

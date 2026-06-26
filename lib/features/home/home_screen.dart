@@ -6,8 +6,10 @@ import '../../common/widgets/brand.dart';
 import '../../common/widgets/order_card.dart';
 import '../../common/widgets/section_header.dart';
 import '../../common/widgets/summary_card.dart';
+import '../../core/maintenance/retention_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_radius.dart';
+import '../authentication/data/shop_providers.dart';
 import '../insights/presentation/insights_providers.dart';
 import '../orders/data/orders_repository.dart';
 import '../orders/domain/order_enums.dart';
@@ -33,6 +35,8 @@ class HomeScreen extends ConsumerWidget {
     final schedule = ref.watch(deliveryScheduleProvider);
     final overdueCount = orders.where((o) => o.effectiveStatus == OrderStatus.overdue).length;
     final greeting = _greeting();
+    final shopName = ref.watch(currentShopProvider).asData?.value?.shopName;
+    ref.watch(retentionProvider); // daily media cleanup once the shop is known
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.small(
@@ -50,8 +54,14 @@ class HomeScreen extends ConsumerWidget {
                   children: [
                     Row(
                       children: [
-                        Text('${greeting.text} ${greeting.emoji}', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                        const Spacer(),
+                        Expanded(
+                          child: Text(
+                            shopName == null ? '${greeting.text} ${greeting.emoji}' : '${greeting.text}, $shopName ${greeting.emoji}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                          ),
+                        ),
                         Container(
                           decoration: BoxDecoration(
                             color: Theme.of(context).colorScheme.surface,
@@ -60,8 +70,9 @@ class HomeScreen extends ConsumerWidget {
                           ),
                           child: IconButton(
                             iconSize: 19,
-                            onPressed: () {},
-                            icon: const Icon(Icons.notifications_none_rounded),
+                            tooltip: 'Settings',
+                            onPressed: () => context.push('/settings'),
+                            icon: const Icon(Icons.settings_outlined),
                           ),
                         ),
                       ],
