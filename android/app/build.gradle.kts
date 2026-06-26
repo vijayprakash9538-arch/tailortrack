@@ -6,7 +6,8 @@ plugins {
 
 android {
     namespace = "com.example.tailor_track"
-    compileSdk = flutter.compileSdkVersion
+    // Some plugins (flutter_plugin_android_lifecycle, etc.) now require SDK 36.
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
