@@ -27,7 +27,9 @@ migrate_working_dir/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-build/
+build/*
+# Vercel serves the prebuilt Flutter web output, so it must be committed.
+!build/web/
 pubspec.lock
 
 # Android
